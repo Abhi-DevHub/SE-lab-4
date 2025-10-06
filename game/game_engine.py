@@ -1,8 +1,11 @@
+import sys
 import pygame
 from .paddle import Paddle
 from .ball import Ball
+import time
 
 # Game Engine
+pygame.mixer.init()
 
 WHITE = (255, 255, 255)
 
@@ -20,6 +23,47 @@ class GameEngine:
         self.player_score = 0
         self.ai_score = 0
         self.font = pygame.font.SysFont("Arial", 30)
+        self.winning_score = 5  # default winning score
+
+    def check_game_over(self, screen):
+        if self.player_score >= self.winning_score or self.ai_score >= self.winning_score:
+            winner_text = "Player Wins!" if self.player_score >= self.winning_score else "AI Wins!"
+
+            screen.fill((0, 0, 0))
+            text_surface = self.font.render(winner_text, True, WHITE)
+            replay_text = self.font.render("Press 3, 5, 7 for Best of N | ESC to Exit", True, WHITE)
+
+            screen.blit(text_surface, (self.width // 2 - text_surface.get_width() // 2,
+                                    self.height // 2 - text_surface.get_height() // 2 - 40))
+            screen.blit(replay_text, (self.width // 2 - replay_text.get_width() // 2,
+                                    self.height // 2 - replay_text.get_height() // 2 + 40))
+            pygame.display.flip()
+
+            waiting = True
+            while waiting:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        pygame.quit()
+                        sys.exit()
+                    elif event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_3:
+                            self.start_new_game(3)
+                            waiting = False
+                        elif event.key == pygame.K_5:
+                            self.start_new_game(5)
+                            waiting = False
+                        elif event.key == pygame.K_7:
+                            self.start_new_game(7)
+                            waiting = False
+                        elif event.key == pygame.K_ESCAPE:
+                            pygame.quit()
+                            sys.exit()
+    
+    def start_new_game(self, best_of):
+        self.winning_score = best_of
+        self.player_score = 0
+        self.ai_score = 0
+        self.ball.reset()
 
     def handle_input(self):
         keys = pygame.key.get_pressed()
@@ -28,10 +72,18 @@ class GameEngine:
         if keys[pygame.K_s]:
             self.player.move(10, self.height)
 
-    def update(self):
+    def update(self, screen):
         self.ball.move()
-        self.ball.check_collision(self.player, self.ai)
 
+        # Paddle collisions
+        if self.ball.rect().colliderect(self.player.rect()):
+            self.ball.x = self.player.x + self.player.width
+            self.ball.velocity_x *= -1
+        elif self.ball.rect().colliderect(self.ai.rect()):
+            self.ball.x = self.ai.x - self.ball.width
+            self.ball.velocity_x *= -1
+
+        # Scoring
         if self.ball.x <= 0:
             self.ai_score += 1
             self.ball.reset()
@@ -39,6 +91,10 @@ class GameEngine:
             self.player_score += 1
             self.ball.reset()
 
+        # Game over check (and replay options)
+        self.check_game_over(screen)
+
+        # AI movement
         self.ai.auto_track(self.ball, self.height)
 
     def render(self, screen):
